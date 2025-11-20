@@ -55,7 +55,7 @@ you can also go to the [Web UI]() and view your running session there:
 
 Task execution view allows to see interactions of agent with the Benchmark in more detail:
 
-![res/log.png](res/png.com)
+![res/log.png](res/log.png)
 
 
 
