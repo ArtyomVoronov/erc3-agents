@@ -49,6 +49,14 @@ this should look like this:
 
 ![res/console.png](res/console.png)
 
+you can also go to the [Web UI]() and view your running session there:
+
+![res/session.png](res/session.png)
+
+Task execution view allows to see interactions of agent with the Benchmark in more detail:
+
+![res/log.png](res/png.com)
+
 
 
 # Available Agents
