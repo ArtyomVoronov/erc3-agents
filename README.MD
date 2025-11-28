@@ -61,7 +61,8 @@ Task execution view allows to see interactions of agent with the Benchmark in mo
 
 # Available Agents
 
-- sgr-agent-store - A simple agent implementation for the store benchmark. It relies on [Schema-Guided Reasoning](https://abdullin.com/schema-guided-reasoning/) to provide adaptive thinking capabilities with a single recursive prompt and gpt-4o.
+- sgr-agent-store - A simple agent implementation for [STORE benchmark](https://erc.timetoact-group.at/benchmarks/store). It relies on [Schema-Guided Reasoning](https://abdullin.com/schema-guided-reasoning/) to provide adaptive thinking capabilities with a single recursive prompt and gpt-4o.
+- sgr-agent-erc3 - A simple SGR NextStep agent for [ERC3-DEV benchmark](https://erc.timetoact-group.at/benchmarks/erc3-dev).
 
 # Resources
 
