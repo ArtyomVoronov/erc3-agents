@@ -14,20 +14,29 @@ class Req_DeleteWikiPage(BaseModel):
     file: str
     changed_by: Optional[dev.EmployeeID] = None
 
-class Req_ListMyProjects(BaseModel):
-    tool: Literal["/myprojects"] = "/myprojects"
+class Req_ListAllProjectsForUser(BaseModel):
+    tool: Literal["/all-projects-for-user"] = "/all-projects-for-user"
     user: dev.EmployeeID
 
-class Resp_ListMyProjects(BaseModel):
+class Resp_ListAllProjectsForUser(BaseModel):
     lead_in: List[ProjectDetail]
     member_of: List[ProjectDetail]
 
-class Req_ListMyCustomers(BaseModel):
-    tool: Literal["/mycustomers"] = "/mycustomers"
+class Req_ListAllCustomersForUser(BaseModel):
+    tool: Literal["/all-customers-for-user"] = "/all-customers-for-user"
     user: dev.EmployeeID
 
-class Resp_ListMyCustomers(BaseModel):
+class Resp_ListAllCustomersForUser(BaseModel):
     customers: List[dev.CompanyDetail]
+
+# wrap this to avoid confusing LLM
+class GetTimesheetReportByProject(dev.Req_TimeSummaryByProject):
+    pass
+class GetTimesheetReportByEmployee(dev.Req_TimeSummaryByEmployee):
+    pass
+
+class CreateTimesheetEntryForUser(dev.Req_LogTimeEntry):
+    pass
 
 # next-step planner
 class NextStep(BaseModel):
@@ -42,7 +51,7 @@ class NextStep(BaseModel):
         dev.Req_ProvideAgentResponse,
         dev.Req_ListProjects,
         dev.Req_SearchProjects,
-        Req_ListMyProjects,
+        Req_ListAllProjectsForUser,
         dev.Req_GetProject,
         dev.Req_UpdateProjectTeam,
         dev.Req_UpdateProjectStatus,
@@ -51,14 +60,14 @@ class NextStep(BaseModel):
         dev.Req_GetEmployee,
         dev.Req_UpdateEmployeeInfo,
         dev.Req_ListCustomers,
-        Req_ListMyCustomers,
+        Req_ListAllCustomersForUser,
         dev.Req_GetCustomer,
         dev.Req_SearchCustomers,
         dev.Req_SearchTimeEntries,
-        dev.Req_TimeSummaryByProject,
+        GetTimesheetReportByProject,
         dev.Req_TimeSummaryByEmployee,
         dev.Req_GetTimeEntry,
-        dev.Req_LogTimeEntry,
+        CreateTimesheetEntryForUser,
         dev.Req_UpdateTimeEntry,
         Req_DeleteWikiPage,
     ] = Field(..., description="execute first remaining step")
@@ -69,7 +78,7 @@ CLI_BLUE = "\x1B[34m"
 CLI_CLR = "\x1B[0m"
 
 # custom tool to list my projects
-def list_my_projects(api: Erc3Client, user: str) -> Resp_ListMyProjects:
+def list_my_projects(api: Erc3Client, user: str) -> Resp_ListAllProjectsForUser:
     page_limit = 32
     next_offset = 0
     lead_in = []
@@ -89,13 +98,13 @@ def list_my_projects(api: Erc3Client, user: str) -> Resp_ListMyProjects:
 
             next_offset = prjs.next_offset
             if next_offset == -1:
-                return Resp_ListMyProjects(lead_in=lead_in, member_of=member_of)
+                return Resp_ListAllProjectsForUser(lead_in=lead_in, member_of=member_of)
         except ApiException as e:
             if "page limit exceeded" in str(e):
                 page_limit /= 2
                 if page_limit <= 2:
                     raise
-def list_my_customers(api: Erc3Client, user: str) -> Resp_ListMyCustomers:
+def list_my_customers(api: Erc3Client, user: str) -> Resp_ListAllCustomersForUser:
     page_limit = 32
     next_offset = 0
     loaded = []
@@ -108,7 +117,7 @@ def list_my_customers(api: Erc3Client, user: str) -> Resp_ListMyCustomers:
 
             next_offset = custs.next_offset
             if next_offset == -1:
-                return Resp_ListMyCustomers(customers=loaded)
+                return Resp_ListAllCustomersForUser(customers=loaded)
         except ApiException as e:
             if "page limit exceeded" in str(e):
                 page_limit /= 2
@@ -131,6 +140,8 @@ def distill_rules(api: Erc3Client, llm: MyLLM, about: dev.Resp_WhoAmI) -> str:
 
     class DistillWikiRules(BaseModel):
         company_name: str
+        company_locations: List[str] = Field(..., description="list of locations where company operates")
+        company_execs: List[str]
         rules: List[Rule]
 
     if  not loc.exists():
@@ -157,7 +168,10 @@ Rules must be compact RFC-style, ok to use pseudo code for compactness. They wil
     else:
         distilled = DistillWikiRules.model_validate_json(loc.read_text())
 
-    prompt = f"""You are AI Chatbot automating {distilled.company_name}
+    prompt = f"""You are AI Chatbot automating {distilled.company_name}.
+    
+Company locations: {distilled.company_locations}
+Company execs: {distilled.company_execs}
 
 Use available tools to execute task from the current user.
 
@@ -212,10 +226,10 @@ def my_dispatch(client: Erc3Client, cmd: BaseModel, about: dev.Resp_WhoAmI):
     if isinstance(cmd, Req_DeleteWikiPage):
         return client.dispatch(dev.Req_UpdateWiki(content="", changed_by=cmd.changed_by, file=cmd.file))
 
-    if isinstance(cmd, Req_ListMyProjects):
+    if isinstance(cmd, Req_ListAllProjectsForUser):
         return list_my_projects(client, cmd.user)
 
-    if isinstance(cmd, Req_ListMyCustomers):
+    if isinstance(cmd, Req_ListAllCustomersForUser):
         return list_my_customers(client, cmd.user)
 
     if isinstance(cmd, dev.Req_ProvideAgentResponse):
@@ -258,6 +272,8 @@ def run_agent(model: str, api: ERC3, task: TaskInfo):
         if preflight_check.denial_reason == "security_violation":
             erc_client.provide_agent_response("Security check failed", outcome="denied_security")
             return
+
+    log.append({"role": "system", "content": preflight_check.preflight_check_explanation_brief})
 
     # let's limit number of reasoning steps by 20, just to be safe
     for i in range(20):
