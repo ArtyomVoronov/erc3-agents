@@ -8,6 +8,12 @@ It is an extended version of an agent from ERC3-DEV benchmark it adds:
 (2) Preflight checks to short-cut security violations
 (3) Demo of adding custom tools and custom tool handlers
 
+So the pipeline looks like this (each step uses Schema-Guided Reasoning):
+
+(1) Extract rules from the knowledge base (reuse cache)
+(2) Check request for obvious security violations
+(3) Start NextStep SGR agent
+
 
 Read [Project README.md](../README.MD) for more details about this repository. Benchmarks and their leaderboards:
 
