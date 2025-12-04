@@ -15,12 +15,19 @@ if __name__ == "__main__":
     if args.task:
         # Debugging a single task
         print(f"Running single task: {args.task}")
-        task = core.start_new_task("erc3-test", args.task)
-        with open("debug_task.txt", "w") as f:
-            f.write(f"Type: {type(task)}\n")
-            f.write(f"Dir: {dir(task)}\n")
-            f.write(f"Content: {task}\n")
-        
+        resp = core.start_new_task("erc3-test", args.task)
+        # Resp_StartTask only contains task_id, we need to create TaskInfo for run_agent
+        # TaskInfo requires: task_id, spec_id, task_text, num, status, benchmark, score
+        from erc3 import TaskInfo
+        task = TaskInfo(
+            task_id=resp.task_id, 
+            spec_id=args.task, 
+            task_text=f"Task: {args.task}",
+            num=1,
+            status=resp.status,
+            benchmark="erc3-test",
+            score=0.0
+        )
         run_agent(MODEL_ID, core, task)
     else:
         # Start session with metadata
