@@ -118,6 +118,7 @@ def distill_rules(api: Erc3Client, llm: MyLLM) -> str:
             distilled = None
 
     if distilled is None:
+        import time as time_module
         print("New context discovered or cache invalid. Distilling rules once")
         # For Gemini, we might not need to pass the schema in the prompt if we use response_format, 
         # but keeping it doesn't hurt.
@@ -132,10 +133,16 @@ Rules must be compact RFC-style, ok to use pseudo code for compactness. They wil
 
 
         # pull wiki
+        wiki_start = time_module.time()
+        wiki_paths = api.list_wiki().paths
+        wiki_list_time = time_module.time() - wiki_start
+        print(f"[PERF] Wiki list took {wiki_list_time:.2f}s, loading {len(wiki_paths)} pages...")
 
-        for path in api.list_wiki().paths:
+        for path in wiki_paths:
+            page_start = time_module.time()
             content = api.load_wiki(path)
-
+            page_time = time_module.time() - page_start
+            print(f"[PERF]   - {path}: {page_time:.2f}s, {len(content)} chars")
             prompt += f"\n---- start of {path} ----\n\n{content}\n\n ---- end of {path} ----\n"
 
 
@@ -148,7 +155,11 @@ Rules must be compact RFC-style, ok to use pseudo code for compactness. They wil
         # Let's add a dummy user message to trigger generation.
         messages.append({"role": "user", "content": "Distill the rules based on the system prompt."})
 
+        llm_start = time_module.time()
         distilled = llm.query(messages, DistillWikiRules)
+        llm_time = time_module.time() - llm_start
+        print(f"[PERF] Distill LLM query took {llm_time:.2f}s")
+        
         loc.write_text(distilled.model_dump_json(indent=2), encoding="utf-8")
 
     prompt = f"""You are AI Chatbot automating {distilled.company_name}
@@ -160,7 +171,7 @@ When updating entry - fill all fields to keep with old values from being erased
 Archival of entries or wiki deletion are not irreversible operations.
 Respond with proper Req_ProvideAgentResponse when:
 - Task is done
-- Task can't be completed (e.g. internal error, user is not allowed or clarification is needed)
+- Task can't be completed (e.g. internal error, API returns an error, user is not allowed or clarification is needed)
 
 # Rules
 """
@@ -214,17 +225,19 @@ def my_dispatch(client: Erc3Client, cmd: BaseModel):
 
     return client.dispatch(cmd)
 
-
-
-
-
 def run_agent(model: str, api: ERC3, task: TaskInfo):
+    import time as time_module
+    agent_start = time_module.time()
 
+    print(f"[PERF] Agent starting for task {task.task_id}")
+    
     erc_client = api.get_erc_client(task)
     llm = MyLLM(api=api, model=model, task=task, max_tokens=32768)
 
-
+    distill_start = time_module.time()
     system_prompt = distill_rules(erc_client, llm)
+    distill_time = time_module.time() - distill_start
+    print(f"[PERF] Distill rules took {distill_time:.2f}s")
 
     DenialReason= Literal["security_violation", "request_not_supported_by_api", "more_information_needed", "may_pass"]
 
@@ -242,7 +255,10 @@ def run_agent(model: str, api: ERC3, task: TaskInfo):
         {"role": "user", "content": f"Request: '{task.task_text}'"},
     ]
 
+    preflight_start = time_module.time()
     preflight_check = llm.query(log, RequestPreflightCheck)
+    preflight_time = time_module.time() - preflight_start
+    print(f"[PERF] Preflight check took {preflight_time:.2f}s")
 
     if preflight_check.outcome_confidence_1_to_5 >=4:
         print("PREFLIGHT: "+preflight_check.preflight_check_explanation_brief)
@@ -257,9 +273,13 @@ def run_agent(model: str, api: ERC3, task: TaskInfo):
     # let's limit number of reasoning steps by 20, just to be safe
     for i in range(20):
         step = f"step_{i + 1}"
+        step_start = time_module.time()
         print(f"Next {step}... ", end="")
 
+        llm_start = time_module.time()
         job = llm.query(log, NextStep)
+        llm_time = time_module.time() - llm_start
+        print(f"[LLM: {llm_time:.2f}s] ", end="")
 
         print(job.plan_remaining_steps_brief[0])
         
@@ -299,15 +319,18 @@ def run_agent(model: str, api: ERC3, task: TaskInfo):
 
         # now execute the tool by dispatching command to our handler
         try:
+            dispatch_start = time_module.time()
             result = my_dispatch(erc_client, function)
+            dispatch_time = time_module.time() - dispatch_start
             txt = result.model_dump_json(exclude_none=True, exclude_unset=True)
             print(f"{CLI_GREEN}OUT{CLI_CLR}: {txt}")
             txt = "DONE: " + txt
+            print(f"[PERF] Step {step} - Dispatch: {dispatch_time:.2f}s, Total: {time_module.time() - step_start:.2f}s")
         except ApiException as e:
             txt = e.detail
             # print to console as ascii red
             print(f"{CLI_RED}ERR: {e.api_error.error}{CLI_CLR}")
-
+            print(f"[PERF] Step {step} - Total: {time_module.time() - step_start:.2f}s (error)")
             txt = "ERROR: " + txt
 
             # if SGR wants to finish, then quit loop
@@ -317,6 +340,7 @@ def run_agent(model: str, api: ERC3, task: TaskInfo):
             for link in function.links:
                 print(f"  - link {link.kind}: {link.id}")
 
+            print(f"[PERF] Agent completed in {time_module.time() - agent_start:.2f}s total")
             break
 
         # and now we add results back to the convesation history, so that agent
