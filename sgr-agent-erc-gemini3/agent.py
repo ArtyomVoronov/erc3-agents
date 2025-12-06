@@ -167,11 +167,17 @@ Rules must be compact RFC-style, ok to use pseudo code for compactness. They wil
 Use available tools to execute task from the current user.
 
 To confirm project access - get or find project (and get after finding)
-When updating entry - fill all fields to keep with old values from being erased
+When updating entry:
+ - fill all fields to keep with old values from being erased
+ - only lead should be able to change project status. Return the corresponing Req_ProvideAgentResponse
 Archival of entries or wiki deletion are not irreversible operations.
 Respond with proper Req_ProvideAgentResponse when:
-- Task is done
-- Task can't be completed (e.g. internal error, API returns an error, user is not allowed or clarification is needed)
+- Task is done (outcome='success')
+- Task can't be completed:
+    - internal error or API error (outcome='failure')
+    - user is not allowed (outcome='denied_security')
+    - clarification is needed (outcome='more_information_needed')
+    - request not supported (outcome='none_unsupported')
 
 # Rules
 """
@@ -261,7 +267,13 @@ def run_agent(model: str, api: ERC3, task: TaskInfo):
     print(f"[PERF] Preflight check took {preflight_time:.2f}s")
 
     if preflight_check.outcome_confidence_1_to_5 >=4:
-        print("PREFLIGHT: "+preflight_check.preflight_check_explanation_brief)
+        print(f"PREFLIGHT CHECK:")
+        print(f"  Actor: {preflight_check.current_actor}")
+        print(f"  Denial Reason: {preflight_check.denial_reason}")
+        print(f"  Confidence: {preflight_check.outcome_confidence_1_to_5}/5")
+        print(f"  Requires Project Listing: {preflight_check.answer_requires_listing_actors_projects}")
+        print(f"  Explanation: {preflight_check.preflight_check_explanation_brief}")
+        
         if preflight_check.denial_reason == "request_not_supported_by_api":
             erc_client.provide_agent_response("Not supported", outcome="none_unsupported")
             return
