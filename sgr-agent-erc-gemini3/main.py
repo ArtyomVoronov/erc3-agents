@@ -29,6 +29,10 @@ if __name__ == "__main__":
             score=0.0
         )
         run_agent(MODEL_ID, core, task)
+        result = core.complete_task(task)
+        if result.eval:
+            explain = textwrap.indent(result.eval.logs, "  ")
+            print(f"\nSCORE: {result.eval.score}\n{explain}\n")
     else:
         # Start session with metadata
         res = core.start_session(
