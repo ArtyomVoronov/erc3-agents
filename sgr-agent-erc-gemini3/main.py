@@ -8,6 +8,7 @@ MODEL_ID = "gemini-3-pro-preview"
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run Gemini Agent")
     parser.add_argument("--task", type=str, help="Run a specific task by spec ID (e.g. project_check_by_member)")
+    parser.add_argument("--task-text", type=str, help="The task text")
     args = parser.parse_args()
 
     core = ERC3()
@@ -22,7 +23,7 @@ if __name__ == "__main__":
         task = TaskInfo(
             task_id=resp.task_id, 
             spec_id=args.task, 
-            task_text=f"Task: {args.task}",
+            task_text=args.task_text,
             num=1,
             status=resp.status,
             benchmark="erc3-test",
