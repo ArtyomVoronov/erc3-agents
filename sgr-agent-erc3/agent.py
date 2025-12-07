@@ -78,7 +78,7 @@ When task is done or can't be done - Req_ProvideAgentResponse.
 
         started = time.time()
 
-        completion = client.beta.chat.completions.parse(
+        resp = client.beta.chat.completions.parse(
             model=model,
             response_format=NextStep,
             messages=log,
@@ -87,12 +87,15 @@ When task is done or can't be done - Req_ProvideAgentResponse.
 
         api.log_llm(
             task_id=task.task_id,
-            model=model, # must match slug from OpenRouter
+            model=model, # should match model slug from OpenRouter
             duration_sec=time.time() - started,
-            usage=completion.usage,
+            completion=resp.choices[0].message.content,
+            prompt_tokens=resp.usage.prompt_tokens,
+            completion_tokens=resp.usage.completion_tokens,
+            cached_prompt_tokens=resp.usage.prompt_tokens_details.cached_tokens,
         )
 
-        job = completion.choices[0].message.parsed
+        job = resp.choices[0].message.parsed
 
           # print next sep for debugging
         print(job.plan_remaining_steps_brief[0], f"\n  {job.function}")

@@ -20,7 +20,10 @@ res = core.start_session(
     benchmark="erc3-test",
     workspace="my",
     name=f"NextStep SGR ({MODEL_ID}) from ERC3 Samples +pipelined",
-    architecture="NextStep SGR Agent with OpenAI")
+    architecture="NextStep SGR Agent with OpenAI",
+    # can also set to compete_budget, compete_speed and/or compete_local
+    flags=["compete_accuracy"]
+)
 
 status = core.session_status(res.session_id)
 print(f"Session has {len(status.tasks)} tasks")

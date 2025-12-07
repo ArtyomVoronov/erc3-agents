@@ -61,7 +61,7 @@ def run_agent(model: str, api: ERC3, task: TaskInfo):
 
         started = time.time()
 
-        completion = client.beta.chat.completions.parse(
+        resp = client.beta.chat.completions.parse(
             model=model,
             response_format=NextStep,
             messages=log,
@@ -70,12 +70,15 @@ def run_agent(model: str, api: ERC3, task: TaskInfo):
 
         api.log_llm(
             task_id=task.task_id,
-            model=model, # must match slug from OpenRouter
+            model=model, # should match model slug from OpenRouter
             duration_sec=time.time() - started,
-            usage=completion.usage,
+            completion=resp.choices[0].message.content,
+            prompt_tokens=resp.usage.prompt_tokens,
+            completion_tokens=resp.usage.completion_tokens,
+            cached_prompt_tokens=resp.usage.prompt_tokens_details.cached_tokens,
         )
 
-        job = completion.choices[0].message.parsed
+        job = resp.choices[0].message.parsed
 
         # if SGR wants to finish, then quit loop
         if isinstance(job.function, ReportTaskCompletion):

@@ -12,7 +12,11 @@ res = core.start_session(
     benchmark="store",
     workspace="my",
     name=f"Simple SGR Agent ({MODEL_ID})",
-    architecture="NextStep SGR Agent with OpenAI")
+    architecture="NextStep SGR Agent with OpenAI",
+    # can also set to compete_budget, compete_speed and/or compete_local
+    flags=["compete_accuracy"]
+
+)
 
 status = core.session_status(res.session_id)
 print(f"Session has {len(status.tasks)} tasks")
