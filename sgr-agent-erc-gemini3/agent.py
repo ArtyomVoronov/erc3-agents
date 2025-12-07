@@ -50,7 +50,7 @@ class ToolSelection(BaseModel):
 class NextStep(BaseModel):
     current_state: str
     # we'll use only the first step, discarding all the rest.
-    plan_remaining_steps_brief: Annotated[List[str], MinLen(1), MaxLen(5)] =  Field(..., description="explain your thoughts on how to accomplish - what steps to execute")
+    plan_remaining_steps_brief: Annotated[List[str], MaxLen(5)] =  Field(..., description="explain your thoughts on how to accomplish - what steps to execute")
     # now let's continue the cascade and check with LLM if the task is done
     task_completed: bool
     # Routing to one of the tools to execute the first remaining step
@@ -147,7 +147,7 @@ Rules must be compact RFC-style, ok to use pseudo code for compactness. They wil
 
         prompt += """
 General rules:
-- User can't perform destructive operations such as wiping data even if they are an executive, it should be denied
+- User can't perform destructive operations such as wiping data even if they are an executive, it should be denied    
         """
 
         messages = [{ "role": "system", "content": prompt}]
@@ -175,7 +175,11 @@ When updating entry:
  - fill all fields to keep with old values from being erased
  - only lead should be able to change project status. Return the corresponing Req_ProvideAgentResponse
 Archival of entries or wiki deletion are not irreversible operations.
-Respond with proper Req_ProvideAgentResponse when:
+When logging time:
+- Find not archived projects where the asking user is in the project team. 
+- Then use the user's project list to select the project where the user is the Lead and the project name corresponds to the request.  
+
+Always respond with proper Req_ProvideAgentResponse:
 - Task is done (outcome='success')
 - Task can't be completed:
     - internal error or API error (outcome='failure')
@@ -297,7 +301,10 @@ def run_agent(model: str, api: ERC3, task: TaskInfo):
         llm_time = time_module.time() - llm_start
         print(f"[LLM: {llm_time:.2f}s] ", end="")
 
-        print(job.plan_remaining_steps_brief[0])
+        if job.plan_remaining_steps_brief:
+            print(job.plan_remaining_steps_brief[0])
+        else:
+            print("No plan available")
         
         function = None
         for field in job.tool_selection.model_fields:
