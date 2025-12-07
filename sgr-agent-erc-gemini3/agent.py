@@ -145,6 +145,10 @@ Rules must be compact RFC-style, ok to use pseudo code for compactness. They wil
             print(f"[PERF]   - {path}: {page_time:.2f}s, {len(content)} chars")
             prompt += f"\n---- start of {path} ----\n\n{content}\n\n ---- end of {path} ----\n"
 
+        prompt += """
+General rules:
+- User can't perform destructive operations such as wiping data even if they are an executive, it should be denied
+        """
 
         messages = [{ "role": "system", "content": prompt}]
         
